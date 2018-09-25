@@ -1,0 +1,142 @@
+svg {
+  font: 10px monospace;
+  margin: auto;
+  display: block;
+}
+
+svg circle {
+  stroke-width: 1px;
+  /*stroke: grey;*/
+  fill: white;
+  /*cursor: pointer;*/
+}
+
+svg circle.event-circle {
+  stroke-width: 1px;
+  stroke: #8B0000;
+  fill: transparent;
+}
+
+svg rect {
+    width: 6px;
+    height: 6px;
+    stroke-width: 2px;
+    stroke: cyan;
+    fill: transparent;
+}
+
+path {
+  fill: none;
+  stroke-width: 1px;
+}
+
+
+.line-red-bold {
+  stroke: red;
+  stroke-width: 2px;
+}
+.line-darkred {
+  stroke: #8B0000;
+}
+.line-mediumpurple {
+  stroke: #9370DB;
+}
+.line-steelblue {
+  stroke: #4682B4;
+}
+.line-indigo {
+  stroke: #4B0082;
+}
+.line-teal {
+  stroke: #008080;
+}
+
+
+
+.line-deeppink {
+  stroke: #FF1493;
+}
+.line-mediumblue {
+  stroke: #0000CD;
+}
+.line-black {
+  stroke: #000000;
+}
+.line-darkseegreen {
+  stroke: #8FBC8F;
+}
+.line-darksalmon {
+  stroke: #E9967A;
+}
+.line-cadetblue {
+  stroke: #5F9EA0;
+}
+.line-brown {
+  stroke: #A52A2A;
+}
+.line-red {
+  stroke: red;
+}
+.line-blue {
+  stroke: blue;
+}
+.line-green {
+  stroke: green;
+}
+.line-cyan {
+  stroke: cyan;
+}
+.line-grey {
+  stroke: gray;
+}
+.line-dashed-grey {
+  stroke: gray;
+  stroke-dasharray: 2,2;
+}
+
+path.area {
+  fill: none;
+}
+
+.axis {
+  shape-rendering: crispEdges;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #fff;
+}
+
+.x.axis line {
+  stroke: gray;
+  stroke-width: 1px;
+  stroke-opacity: .5;
+  stroke-dasharray: 3,3;
+}
+
+.x.axis .minor {
+  stroke-opacity: .5;
+}
+
+.x.axis path {
+  fill: none;
+  stroke: gray;
+}
+
+.y.axis line {
+  stroke: gray;
+  stroke-width: 1px;
+  stroke-opacity: .5;
+  stroke-dasharray: 3,3;
+}
+
+.y.axis .minor {
+  stroke-opacity: .5;
+}
+
+.y.axis path {
+  stroke: gray;
+  fill: none;
+}
+

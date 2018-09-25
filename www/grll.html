@@ -1,0 +1,78 @@
+<html lang="ru" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>::G0rilLa::</title>
+        <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+        <link href="css/d3.css" rel='stylesheet' type='text/css'>
+        <script src="js/d3-4.4.0.js" charset='utf-8'></script>
+        <link href="css/grll.css" rel='stylesheet' type='text/css'>
+        <script src="js/grll.js" charset='utf-8'></script>
+    </head>
+
+    <body onload="on_load();">
+
+    <!-- overlay -->
+
+    <div id="overlay" onclick="hide_popup()"></div>
+
+
+    <!-- PAGE -->
+
+    <div id="page">
+
+        <div id="header">
+        </div>
+
+
+        <!-- CONTENT -->
+
+            <div id="content">
+
+                <div id="center-2-column">
+
+                    <div class="object">
+                        <h2>latest results</h2>
+                        <div >
+                            <table id="table-general">
+
+                            </table>
+                        </div>
+                    </div>
+
+                     <div class="object">
+                        <h2>tags</h2>
+                        <div class="tagcloud">
+                            <ul id="tags">
+                            </ul>
+                        </div>
+                    </div>
+
+                     <div class="object">
+                        <h2>upload</h2>
+                        <div class="tagcloud">
+                            <input id="url" type="text" />
+                            <input type="button" value="upload url" onclick="upload_url();" />
+                            <span id="upload-status"></span>
+                        </div>
+                    </div>
+
+
+                </div>
+
+            </div>
+
+
+
+            <!-- LEFT -->
+
+
+            <div id="left-2-column">
+
+            </div>
+
+        </div>
+
+        <div id="footer">Test Lab</div>
+
+    </body>
+
+
