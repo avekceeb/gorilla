@@ -1,3 +1,12 @@
+/*
+TODO:
+	- set limits for queries (in settings?)
+	- rdb perf reports
+	- storing numbers, series
+	- tests
+	- move sql to server functions
+ */
+
 package main
 
 import (
@@ -22,8 +31,9 @@ import (
 
 const (
 
-	xslHeaderRdb    = `<?xml-stylesheet type="text/xsl" href="/rdb.xsl"?>` + "\n"
-	xslHeaderGringo = `<?xml-stylesheet type="text/xsl" href="/grll.xsl"?>` + "\n"
+	//xslHeaderRdb   = `<?xml-stylesheet type="text/xsl" href="/rdb.xsl"?>` + "\n"
+	xslGrllTestRun = `<?xml-stylesheet type="text/xsl" href="/grll.xsl"?>` + "\n"
+	xslGrllRusults = `<?xml-stylesheet type="text/xsl" href="/grll-results.xsl"?>` + "\n"
 
 	sqlGetTagsByTestRunId =
 		`select tag.name from testrun
@@ -45,12 +55,13 @@ const (
         WHERE testrun.id = $1`
 
 	sqlGetResultsByTest =
-		`select testrun.name, status.name, testrun.ts from result
-		inner join test on test.id = result.test
-		inner join testrun on testrun.id = result.testrun
-		inner join status on status.id = result.status
-		where test.name = $1
-		order by testrun.ts limit 100`
+		`SELECT testrun.name, status.name,
+		COALESCE(result.message, '') as message, testrun.ts FROM result
+		INNER JOIN test ON test.id = result.test
+		INNER JOIN testrun ON testrun.id = result.testrun
+		INNER JOIN status ON status.id = result.status
+		WHERE test.name = $1
+		ORDER BY testrun.ts LIMIT 100`
 
 	sqlGetTestRuns      = `SELECT id, name, ts FROM testrun ORDER BY ts LIMIT 50`
 
@@ -223,17 +234,6 @@ func getResultsByTestRunId(runId int) []GrllResult {
 	return list
 }
 
-func getTestRunById(runId int) *GrllTestRun {
-	g := NewGrllTestRun()
-	err := db.QueryRow(sqlGetTestRunById, runId).Scan(&g.Run)
-	if err!=nil {
-		log.Println(err.Error())
-	}
-	g.Results = getResultsByTestRunId(runId)
-	g.Tags = getTagsByRunId(runId)
-	return g
-}
-
 // TODO: merge
 func getTags() []string {
 	tags := make([]string,0)
@@ -316,6 +316,38 @@ func getTestRunsLike(likeThis string) []GrllTestRun {
 	return list
 }
 
+func getTestRunById(runId int) *GrllTestRun {
+	g := NewGrllTestRun()
+	err := db.QueryRow(sqlGetTestRunById, runId).Scan(&g.Run)
+	if err!=nil {
+		log.Println(err.Error())
+	}
+	g.Results = getResultsByTestRunId(runId)
+	g.Tags = getTagsByRunId(runId)
+	return g
+}
+
+func getTestRunByTest(testName string) GrllHistorical {
+	list := GrllHistorical{Test:testName,
+							Items:make([]GrllHistoricalItem,0)}
+	rows, err := db.Query(sqlGetResultsByTest, testName)
+	if err != nil {
+		log.Println("Error: ", err.Error())
+		return list
+	}
+	defer rows.Close()
+	for rows.Next() {
+		i := GrllHistoricalItem{}
+		err := rows.Scan(&i.Run, &i.Status, &i.Message, &i.Timestamp)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+			return list
+		}
+		list.Items = append(list.Items, i)
+	}
+	return list
+}
+
 
 ////////// report imports ////////////////////////////////
 
@@ -371,11 +403,19 @@ func getTestRun(w http.ResponseWriter, r *http.Request) {
 	runId := r.URL.Query().Get("id")
 	tag := r.URL.Query().Get("tag")
 	like := r.URL.Query().Get("like")
+	test := r.URL.Query().Get("test")
 	if runId != "" {
 		w.Header().Set("Content-Type", "application/xml")
 		i, _ := strconv.Atoi(runId)
 		if x, err := xml.MarshalIndent(getTestRunById(i), "", "  "); err == nil {
-	x = []byte(xml.Header + xslHeaderGringo + string(x))
+			x = []byte(xml.Header + xslGrllTestRun + string(x))
+			fmt.Fprintf(w, "%s\n", x)
+		}
+		return
+	} else if test != "" {
+		w.Header().Set("Content-Type", "application/xml")
+		if x, err := xml.MarshalIndent(getTestRunByTest(test), "", "  "); err == nil {
+			x = []byte(xml.Header + xslGrllRusults + string(x))
 			fmt.Fprintf(w, "%s\n", x)
 		}
 		return

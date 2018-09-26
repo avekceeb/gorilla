@@ -2,7 +2,7 @@
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" >
 <xsl:output omit-xml-declaration="yes" indent="yes"/>
 
-<xsl:template match="/GrllTestRun">
+<xsl:template match="/GrllHistorical">
 
     <xsl:variable name="verdict">
         <xsl:choose>
@@ -28,31 +28,30 @@
 </style>
 </head>
 <body>
-    <h1 class="{$verdict}"><xsl:value-of select="run"/></h1>
-
+    <h1><xsl:value-of select="test"/></h1>
     <h4>
-        <span class="passed">Passed = <xsl:value-of select="count(results/status[text() = 'passed'])"/></span>
-        <span class="failed">Failed = <xsl:value-of select="count(results/status[text() = 'failed'])"/></span>
-        <span class="skipped">Skipped = <xsl:value-of select="count(results/status[text() = 'skipped'])"/></span>
+        <span class="passed">Passed = <xsl:value-of select="count(items/status[text() = 'passed'])"/></span>
+        <span class="failed">Failed = <xsl:value-of select="count(items/status[text() = 'failed'])"/></span>
+        <span class="skipped">Skipped = <xsl:value-of select="count(items/status[text() = 'skipped'])"/></span>
 
     </h4>
 
-    <ul>
-    <xsl:apply-templates select='tags' />
-    </ul>
-
-
     <h3>Results</h3>
     <table cellspacing="0">
-    <tr class="header"><td>Name</td><td>Status</td><td>Message</td></tr>
-    <xsl:apply-templates select='results' />
+    <tr class="header">
+        <td>Run</td>
+        <td>Status</td>
+        <td>Message</td>
+        <td>Date</td>
+    </tr>
+    <xsl:apply-templates select='items' />
     </table>
 </body>
 </html>
 </xsl:template>
 
 
-<xsl:template match='results'>
+<xsl:template match='items'>
     <xsl:variable name="class">
         <xsl:choose>
         <xsl:when test="normalize-space(./status) = 'passed'">passed</xsl:when>
@@ -67,22 +66,13 @@
         <xsl:otherwise>odd</xsl:otherwise>
         </xsl:choose>
     </xsl:variable>
-    <xsl:variable name="testname"><xsl:value-of select="normalize-space(./test)"/></xsl:variable>
     <tr class="{$oddeven}">
-        <td class="{$class}">
-            <a href="/api/testrun?test={$testname}">
-            <xsl:copy-of select="$testname" />
-            </a>
-        </td>
+        <td class="{$class}"><xsl:value-of select="normalize-space(./run)"/></td>
         <td class="{$class}"><xsl:value-of select="normalize-space(./status)"/></td>
         <td class="{$class}"><xsl:value-of select="normalize-space(./msg)"/></td>
+        <td class="{$class}"><xsl:value-of select="normalize-space(./ts)"/></td>
     </tr>
 </xsl:template>
-
-<xsl:template match='tags'>
-        <li><xsl:value-of select="normalize-space(.)"/></li>
-</xsl:template>
-
 
 </xsl:stylesheet>
 
