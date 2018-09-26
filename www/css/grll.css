@@ -350,7 +350,22 @@ thead {
 }
 
 
-.object h2, .popup h2 {
+.h2 {
+    background-color: lightgrey;
+    border-radius: 7px 7px 0 0;
+    color: #606060;
+    font-size: 1em;
+    font-weight: bold;
+    line-height: 130%;
+    margin-top: 0;
+    margin-bottom: 10px;
+    padding: 0.7em 0;
+    text-align: center;
+    width: 100%;
+}
+
+/*
+.popup h2 {
     background-color: lightgrey;
     border-radius: 7px 7px 0 0;
     color: #606060;
@@ -361,15 +376,13 @@ thead {
     padding: 0.7em 0;
     text-align: center;
     width: 100%;
-}
-
-.popup h2 {
     background-image: url(/images/icons/delete.png);
     background-repeat: no-repeat;
     background-position-x: right;
     background-position-y: center;
     cursor: pointer;
 }
+*/
 
 .text-center {
     text-align: center;

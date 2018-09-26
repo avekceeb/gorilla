@@ -14,8 +14,10 @@ import (
 	"io"
 	"strconv"
 	"flag"
-. "rdb"
+	. "rdb"
     . "gorilla/grll"
+	"time"
+	"path"
 )
 
 const (
@@ -42,7 +44,15 @@ const (
                 ON result.status = status.id
         WHERE testrun.id = $1`
 
-	sqlGetTestRuns      = `SELECT id, name, ts FROM testrun ORDER BY ts`
+	sqlGetResultsByTest =
+		`select testrun.name, status.name, testrun.ts from result
+		inner join test on test.id = result.test
+		inner join testrun on testrun.id = result.testrun
+		inner join status on status.id = result.status
+		where test.name = $1
+		order by testrun.ts limit 100`
+
+	sqlGetTestRuns      = `SELECT id, name, ts FROM testrun ORDER BY ts LIMIT 50`
 
 	sqlGetTestRunById   = `SELECT name FROM testrun WHERE id = $1`
 
@@ -54,10 +64,25 @@ const (
 
 	sqlSetTag           = "SELECT set_tag($1, $2)"
 
-	sqlGetTags          = "SELECT id, name FROM tag ORDER BY name"
+	sqlGetTags          = "SELECT id, name FROM tag ORDER BY name LIMIT 50"
 
 	sqlGetTestRunsByTag =
 		`SELECT id, name, ts FROM get_testruns_by_tag($1) ORDER BY ts`
+
+	sqlSearchTestRun =
+		`select testrun.id, testrun.name, testrun.ts
+		from testrun where testrun.name like $1
+		order by testrun.ts limit 100`
+
+	sqlSearchTest =
+		`select test.name from test
+		where test.name like $1
+		order by test.name limit 100`
+
+	sqlSearchTag =
+		`select tag.name from tag
+		where tag.name like $1
+		order by tag.name limit 50`
 )
 
 var db *sql.DB
@@ -75,9 +100,18 @@ func init() {
 	}
 }
 
+func justPrint(e error) {
+	if nil != e {
+		fmt.Println(e.Error())
+	}
+}
+
+
 func debug(msg string) {
 	log.Println(msg)
 }
+
+/////////// convert report ////////////////////////////////
 
 func rdbToGrll(rdb *RDBTestSuite) *GrllTestRun {
 	g := NewGrllTestRun()
@@ -86,7 +120,11 @@ func rdbToGrll(rdb *RDBTestSuite) *GrllTestRun {
 	} else {
 		g.Run = rdb.Config.Name
 	}
-	g.Timestamp = rdb.Timestamp
+	if "" != rdb.Timestamp {
+		g.Timestamp = rdb.Timestamp
+	} else { // set current time as last resort
+		g.Timestamp = time.Now().Format(time.RFC3339)
+	}
 	for _, t := range rdb.TestList.TestCases {
 		g.Results = append(g.Results,
 				GrllResult{Test:t.Name,
@@ -99,6 +137,7 @@ func rdbToGrll(rdb *RDBTestSuite) *GrllTestRun {
 	return g
 }
 
+////////////  db queries ///////////////////////////////
 
 func getTestRuns() []GrllTestRun {
 	list := make([]GrllTestRun,0)
@@ -130,9 +169,7 @@ func newTestRun(n string, ts string) int {
 
 func setTag(runId int, tag string) {
 	_, err := db.Exec(sqlSetTag, runId, tag)
-	if err!=nil {
-		log.Println(err.Error())
-	}
+	justPrint(err)
 }
 
 func newResult(result *GrllResult, runId int) {
@@ -143,9 +180,7 @@ func newResult(result *GrllResult, runId int) {
 	} else {
 		_, err = db.Exec(sqlPutResult, result.Test, result.Status, runId)
 	}
-	if err != nil {
-		log.Println(err.Error())
-	}
+	justPrint(err)
 }
 
 func getTagsByRunId(runId int) []string {
@@ -199,6 +234,7 @@ func getTestRunById(runId int) *GrllTestRun {
 	return g
 }
 
+// TODO: merge
 func getTags() []string {
 	tags := make([]string,0)
 	rows, err := db.Query(sqlGetTags)
@@ -219,7 +255,27 @@ func getTags() []string {
 	}
 	return tags
 }
+func getTagsLike(likeThis string) []string {
+	tags := make([]string,0)
+	rows, err := db.Query(sqlSearchTag, "%" + likeThis + "%")
+	if err != nil {
+		log.Println(err.Error())
+		return tags
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t string
+		err := rows.Scan(&t)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+			return tags
+		}
+		tags = append(tags, t)
+	}
+	return tags
+}
 
+// TODO: refactor this copy-paste stuff
 func getTestRunsByTag(tag string) []GrllTestRun {
 	list := make([]GrllTestRun,0)
 	rows, err := db.Query(sqlGetTestRunsByTag, tag)
@@ -239,6 +295,29 @@ func getTestRunsByTag(tag string) []GrllTestRun {
 	}
 	return list
 }
+func getTestRunsLike(likeThis string) []GrllTestRun {
+	list := make([]GrllTestRun,0)
+	// TODO: check if ends with %
+	rows, err := db.Query(sqlSearchTestRun, "%" + likeThis + "%")
+	if err != nil {
+		log.Println("Error: ", err.Error())
+		return list
+	}
+	defer rows.Close()
+	for rows.Next() {
+		i := NewGrllTestRun()
+		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+			return list
+		}
+		list = append(list, *i)
+	}
+	return list
+}
+
+
+////////// report imports ////////////////////////////////
 
 func loadRDBSuiteToDB(g *GrllTestRun) {
 	runId := newTestRun(g.Run, g.Timestamp)
@@ -285,58 +364,13 @@ func importRDBXml(rdr io.Reader) {
 	//}
 }
 
-
-func main() {
-
-	port := flag.Int("port", 3000, "port to listen")
-	www := flag.String("www", "www", "web dir to serve")
-	importDir := flag.String("import", "", "file or directory with reports to import to db")
-	flag.Parse()
-
-	if *importDir != "" {
-		loadDir(*importDir)
-		fmt.Println("exiting...")
-		return
-	}
-
-	err := filepath.Walk(*www,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if ! info.IsDir() {
-			// TODO: path.Join
-				to := "/" + strings.TrimPrefix(strings.TrimPrefix(path, *www), "/")
-				http.HandleFunc(to,
-					func (w http.ResponseWriter, r *http.Request) {
-					http.ServeFile(w, r, "./" + path)
-				})
-			}
-			return nil
-		})
-	if err != nil {
-	fmt.Println(err.Error())
-		return
-	}
-	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "www/grll.html")
-	})
-
-	http.HandleFunc("/api/testrun", getTestRun)
-	http.HandleFunc("/api/tag", getTag)
-
-	http.HandleFunc("/api/upload", uploadReport)
-
-	http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
-
-return
-}
-
+///////// http handlers ////////////////////////////////
 
 func getTestRun(w http.ResponseWriter, r *http.Request) {
 	debug(r.URL.String() + " from " + r.RemoteAddr)
 	runId := r.URL.Query().Get("id")
 	tag := r.URL.Query().Get("tag")
+	like := r.URL.Query().Get("like")
 	if runId != "" {
 		w.Header().Set("Content-Type", "application/xml")
 		i, _ := strconv.Atoi(runId)
@@ -344,11 +378,19 @@ func getTestRun(w http.ResponseWriter, r *http.Request) {
 	x = []byte(xml.Header + xslHeaderGringo + string(x))
 			fmt.Fprintf(w, "%s\n", x)
 		}
+		return
 	} else if tag != "" {
 		log.Println("Requesting tag ", tag)
 		w.Header().Set("Content-Type", "application/json")
 		e := json.NewEncoder(w)
 		e.Encode(getTestRunsByTag(tag))
+		return
+	} else if like != "" {
+		log.Println("Requesting like ", like)
+		w.Header().Set("Content-Type", "application/json")
+		e := json.NewEncoder(w)
+		e.Encode(getTestRunsLike(like))
+		return
 	} else {
 		w.Header().Set("Content-Type", "application/json")
 		e := json.NewEncoder(w)
@@ -360,7 +402,14 @@ func getTag(w http.ResponseWriter, r *http.Request) {
 	debug(r.URL.String() + " from " + r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
 	e := json.NewEncoder(w)
-	e.Encode(getTags())
+	like := r.URL.Query().Get("like")
+	if like != "" {
+		log.Println("Requesting like ", like)
+		e.Encode(getTagsLike(like))
+		return
+	} else {
+		e.Encode(getTags())
+	}
 }
 
 func uploadReport(w http.ResponseWriter, r *http.Request) {
@@ -389,3 +438,51 @@ func uploadReport(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "ok")
 }
 
+////////// the main //////////////////////////////////
+
+func main() {
+
+	port := flag.Int("port", 3000, "port to listen")
+	www := flag.String("www", "www", "web dir to serve")
+	importDir := flag.String("import", "", "file or directory with reports to import to db")
+	flag.Parse()
+
+	if *importDir != "" {
+		loadDir(*importDir)
+		fmt.Println("exiting...")
+		return
+	}
+
+	err := filepath.Walk(*www,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if ! info.IsDir() {
+			// TODO: path.Join
+				to := "/" + strings.TrimPrefix(strings.TrimPrefix(path, *www), "/")
+				http.HandleFunc(to,
+					func (w http.ResponseWriter, r *http.Request) {
+					http.ServeFile(w, r, "./" + path)
+				})
+			}
+			return nil
+		},
+	)
+	if err != nil {
+	fmt.Println(err.Error())
+		return
+	}
+	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, path.Join(*www, "grll.html"))
+	})
+
+	http.HandleFunc("/api/testrun", getTestRun)
+	http.HandleFunc("/api/tag", getTag)
+
+	http.HandleFunc("/api/upload", uploadReport)
+
+	http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
+
+	return
+}

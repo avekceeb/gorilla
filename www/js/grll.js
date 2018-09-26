@@ -1,9 +1,32 @@
 
+///////// on *** event ///////////////////////
+
 function on_load() {
     get_testrun();
     get_tags();
 }
 
+function on_search_runs(val) {
+    if (val.length > 2) {
+        d3.json("api/testrun?like="+val)
+            .get(function(error, jsonData) {
+                itemsToTable(jsonData);
+            }
+        );
+    }
+}
+
+function on_search_tags(val) {
+    if (val.length > 2) {
+        d3.json("api/tag?like="+val)
+            .get(function(error, jsonData) {
+                itemsToList(jsonData);
+            }
+        );
+    }
+}
+
+/////////////////////////////////////////////
 
 function itemsToTable(json) {
     if (!json) {

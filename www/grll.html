@@ -30,7 +30,12 @@
                 <div id="center-2-column">
 
                     <div class="object">
-                        <h2>latest results</h2>
+                        <div class="h2">
+                            <span>latest results</span>
+                            <input id="search-runs" type="text"
+                                   onkeyup="on_search_runs(this.value);"/>
+                        </div>
+
                         <div >
                             <table id="table-general">
 
@@ -39,7 +44,11 @@
                     </div>
 
                      <div class="object">
-                        <h2>tags</h2>
+                        <div class="h2">
+                            <span>tags</span>
+                            <input id="search-tags" type="text"
+                                onkeyup="on_search_tags(this.value);"/>
+                        </div>
                         <div class="tagcloud">
                             <ul id="tags">
                             </ul>
@@ -47,7 +56,7 @@
                     </div>
 
                      <div class="object">
-                        <h2>upload</h2>
+                        <h2 class="h2">upload</h2>
                         <div class="tagcloud">
                             <input id="url" type="text" />
                             <input type="button" value="upload url" onclick="upload_url();" />
