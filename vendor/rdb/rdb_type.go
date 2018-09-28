@@ -1,10 +1,13 @@
 package rdb 
-
+/*
+	Crappy format invented one day by some lammers
+	I just translated it to Go
+ */
 
 import (
 	"encoding/xml"
-	//"encoding/json"
 	"os"
+	"time"
 )
 
 
@@ -12,7 +15,7 @@ import (
 type RDBTestSuite struct {
 	XMLName   xml.Name        `xml:"report"    json:"report"`
 	Config    RDBConfig       `xml:"config"    json:"config"`
-	Timestamp string          `xml:"timestamp" json:"timestamp"` //date '+%Y-%m-%dT%H:%M:%S%:z'
+	Timestamp string          `xml:"timestamp" json:"timestamp"`
 	TestList  RDBTestList     `xml:"test_list" json:"test_list"`
 	// the rest is garbage
 	Kind      string          `xml:"type,attr" json:"type,attr"`
@@ -59,11 +62,16 @@ type RDBTestList struct {
 }
 
 type RDBTestCase struct {
-	Name           string    `xml:"name"               json:"name"`
-	Status         string    `xml:"status"             json:"status"`
-	// TODO: format
-	Duration       float64   `xml:"duration,omitempty" json:"duration,omitempty"`
-	Message        string    `xml:"message,omitempty"  json:"message,omitempty"`
+	Name       string  `xml:"name"                 json:"name"`
+	// auto reports
+	Status     string  `xml:"status"               json:"status,omitempty"`
+	Duration   float64  `xml:"duration,omitempty"  json:"duration,omitempty"`
+	Message    string   `xml:"message,omitempty"   json:"message,omitempty"`
+	// for perf reports
+	Threshold  float64  `xml:"threshold,omitempty" json:"threshold,omitempty"`
+	Trend      string   `xml:"trend,omitempty"     json:"trend,omitempty"`
+	Unit       string   `xml:"unit,omitempty"      json:"unit,omitempty"`
+	Value      float64  `xml:"value,omitempty"     json:"value,omitempty"`
 }
 
 
@@ -72,7 +80,7 @@ func NewRDBTestSuite() *RDBTestSuite {
 			Config:     RDBConfig { Name: os.Getenv("TPP_CONFIG"),
 									Props: RDBPropList{} },
 			TestList:   RDBTestList {TestCases: []RDBTestCase{}},
-			Timestamp:  "2018-08-31T02:20:10-07:00", // TODO
+			Timestamp:  time.Now().Format(time.RFC3339),
 			Kind:       "auto",
 			Project:    os.Getenv("TPP_PROJECT"),
 			Log:        os.Getenv("TPP_LOG_BASE"),

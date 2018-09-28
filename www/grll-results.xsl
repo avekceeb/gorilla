@@ -46,6 +46,7 @@
     </tr>
     <xsl:apply-templates select='items' />
     </table>
+
 </body>
 </html>
 </xsl:template>

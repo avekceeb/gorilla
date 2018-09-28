@@ -1,10 +1,12 @@
 /*
 TODO:
 	- set limits for queries (in settings?)
-	- rdb perf reports
+	+ rdb perf reports
 	- storing numbers, series
 	- tests
 	- move sql to server functions
+	- refresh testruns after clearing search field
+	- on historical results add link to testruns
  */
 
 package main
@@ -63,6 +65,13 @@ const (
 		WHERE test.name = $1
 		ORDER BY testrun.ts LIMIT 100`
 
+	sqlMeasurementsByTestRunId =
+		`SELECT test.name, measurement.val, COALESCE(measurement.unit, '') as unit
+        FROM testrun
+        INNER JOIN measurement ON measurement.testrun = testrun.id
+        LEFT JOIN test ON test.id = measurement.test
+        WHERE testrun.id = $1`
+
 	sqlGetTestRuns      = `SELECT id, name, ts FROM testrun ORDER BY ts LIMIT 50`
 
 	sqlGetTestRunById   = `SELECT name FROM testrun WHERE id = $1`
@@ -70,6 +79,10 @@ const (
 	sqlPutTestRun       = "SELECT * FROM new_testrun($1, $2)"
 
 	sqlPutResult        = "SELECT * FROM new_result($1, $2, NULL, $3)"
+
+	sqlPutValue         = "SELECT * FROM new_measurement($1, $2, $3, $4)"
+	//_, err = db.Exec(sqlPutValue, result.Test,
+	//		result.Value,result.Unit, runId)
 
 	sqlPutResultMessage = "SELECT * FROM new_result($1, $2, $4, $3)"
 
@@ -124,27 +137,52 @@ func debug(msg string) {
 
 /////////// convert report ////////////////////////////////
 
+
 func rdbToGrll(rdb *RDBTestSuite) *GrllTestRun {
+
 	g := NewGrllTestRun()
+
+	// Compose TestRun name
 	if "" != rdb.Suite.Name {
 		g.Run = rdb.Suite.Name + " " + rdb.Config.Name
 	} else {
 		g.Run = rdb.Config.Name
 	}
+
+	// Ensure timestamp is set
 	if "" != rdb.Timestamp {
 		g.Timestamp = rdb.Timestamp
-	} else { // set current time as last resort
+	} else {
+		// set current time as last resort
 		g.Timestamp = time.Now().Format(time.RFC3339)
 	}
+
+	// Grab all results and put them into 2 bags:
 	for _, t := range rdb.TestList.TestCases {
-		g.Results = append(g.Results,
-				GrllResult{Test:t.Name,
-						Status:t.Status,
-						Message:t.Message})
+		if "" != t.Status {
+			// this should be pass/fail result
+			// put it in 'Results' bag
+			g.Results = append(g.Results,
+				GrllResult { Test:t.Name,
+					Status:t.Status,
+					Message:t.Message },
+			)
+		} else if p := &(t.Value); p != nil { // TODO: !!!!
+			// this is measurement
+			// put it to 'Values'
+			g.Values = append(g.Values,
+				GrllValue { Test: t.Name,
+					Value: t.Value,
+					Unit: t.Unit },
+			)
+		} // else error
 	}
+
+	// Grab all the properties (except those project, milestone etc)
 	for _, v := range rdb.Config.Props.Properties {
 		g.Tags = append(g.Tags, fmt.Sprintf("%s=%s", v.Key, v.Value))
 	}
+
 	return g
 }
 
@@ -187,10 +225,18 @@ func newResult(result *GrllResult, runId int) {
 	var err error
 	// TODO: there should be a better way of mapping '' -> NULL
 	if "" != result.Message {
-		_, err = db.Exec(sqlPutResultMessage, result.Test, result.Status, runId, result.Message)
+		_, err = db.Exec(sqlPutResultMessage, result.Test,
+			result.Status, runId, result.Message)
 	} else {
 		_, err = db.Exec(sqlPutResult, result.Test, result.Status, runId)
 	}
+	justPrint(err)
+}
+
+func newValue(result *GrllValue, runId int) {
+	var err error
+	_, err = db.Exec(sqlPutValue, result.Test,
+			result.Value,result.Unit, runId)
 	justPrint(err)
 }
 
@@ -233,6 +279,29 @@ func getResultsByTestRunId(runId int) []GrllResult {
 	}
 	return list
 }
+
+func getMeasurementsByTestRunId(runId int) []GrllValue {
+
+	list := make([]GrllValue, 0)
+	rows, err := db.Query(sqlMeasurementsByTestRunId, runId)
+	if err != nil {
+		log.Println("Error: ", err.Error())
+		return list
+	}
+	defer rows.Close()
+	for rows.Next() {
+		i := new(GrllValue)
+		err := rows.Scan(&i.Test, &i.Value, &i.Unit)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+			return list
+		}
+		list = append(list, *i)
+	}
+	return list
+}
+
+
 
 // TODO: merge
 func getTags() []string {
@@ -317,13 +386,18 @@ func getTestRunsLike(likeThis string) []GrllTestRun {
 }
 
 func getTestRunById(runId int) *GrllTestRun {
+
 	g := NewGrllTestRun()
+
 	err := db.QueryRow(sqlGetTestRunById, runId).Scan(&g.Run)
 	if err!=nil {
 		log.Println(err.Error())
 	}
+
 	g.Results = getResultsByTestRunId(runId)
-	g.Tags = getTagsByRunId(runId)
+	g.Values  = getMeasurementsByTestRunId(runId)
+	g.Tags    = getTagsByRunId(runId)
+
 	return g
 }
 
@@ -351,14 +425,23 @@ func getTestRunByTest(testName string) GrllHistorical {
 
 ////////// report imports ////////////////////////////////
 
-func loadRDBSuiteToDB(g *GrllTestRun) {
+func loadGrllTestRunToDB(g *GrllTestRun) {
+	// ??? check if Timestamp is empty
 	runId := newTestRun(g.Run, g.Timestamp)
+
+	// load all the tags
 	for _, t := range g.Tags {
 		setTag(runId, t)
 	}
+
+	// load results
 	for _, r := range g.Results {
-		//debug("        " + r.Test)
 		newResult(&r, runId)
+	}
+
+	// load values
+	for _, r := range g.Values {
+		newValue(&r, runId)
 	}
 }
 
@@ -390,7 +473,7 @@ func importRDBXml(rdr io.Reader) {
 	}
 	log.Println("        report: ", s.Config.Name)
 	g := rdbToGrll(&s)
-	loadRDBSuiteToDB(g)
+	loadGrllTestRunToDB(g)
 	//if j, err := json.MarshalIndent(g, "", "    "); err == nil {
 	//	fmt.Printf("%s\n", j)
 	//}

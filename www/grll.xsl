@@ -47,6 +47,18 @@
     <tr class="header"><td>Name</td><td>Status</td><td>Message</td></tr>
     <xsl:apply-templates select='results' />
     </table>
+
+    <h3>Measurements</h3>
+    <table cellspacing="0">
+    <tr class="header">
+        <td>Name</td>
+        <td>Value</td>
+        <td>Unit</td>
+    </tr>
+    <xsl:apply-templates select='values' />
+    </table>
+
+
 </body>
 </html>
 </xsl:template>
@@ -78,6 +90,21 @@
         <td class="{$class}"><xsl:value-of select="normalize-space(./msg)"/></td>
     </tr>
 </xsl:template>
+
+<xsl:template match='values'>
+    <xsl:variable name="oddeven">
+        <xsl:choose>
+        <xsl:when test="position() mod 2 = 0">even</xsl:when>
+        <xsl:otherwise>odd</xsl:otherwise>
+        </xsl:choose>
+    </xsl:variable>
+    <tr class="{$oddeven}">
+        <td><xsl:value-of select="normalize-space(./test)"/></td>
+        <td><xsl:value-of select="normalize-space(./value)"/></td>
+        <td><xsl:value-of select="normalize-space(./unit)"/></td>
+    </tr>
+</xsl:template>
+
 
 <xsl:template match='tags'>
         <li><xsl:value-of select="normalize-space(.)"/></li>
