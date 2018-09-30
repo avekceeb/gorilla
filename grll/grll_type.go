@@ -7,6 +7,7 @@ package grll
 type GrllTestRun struct {
 	Run         string          `xml:"run"      json:"run"`
 	Timestamp   string          `xml:"ts"       json:"ts"`
+	Link        string          `xml:"link"     json:"link"`
 	Results     []GrllResult    `xml:"results"  json:"results"`
 	Values      []GrllValue     `xml:"values"   json:"values"`
 	Tags        []string        `xml:"tags"     json:"tags"`

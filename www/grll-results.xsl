@@ -12,20 +12,8 @@
     </xsl:variable>
 
 
-<html><head><title></title>
-<style type="text/css">
-    <!--/*--><![CDATA[/*><!--*/
-    body { font-family: monospace ; }
-    span {margin: 0px 10px ; }
-    td { padding: 3px ; }
-    tr.header { background-color: silver; }
-    tr.odd { background-color: #E4E4E4; }
-    tr.even { background-color: #F0F0F0 ; }
-    .passed { color: green; }
-    .failed { color: red; }
-    .skipped { color: darkorange; }
-    /*]]>*/-->
-</style>
+<html><head><title>::Grll::</title>
+<link href="/css/grll.css" rel='stylesheet' type='text/css'/>
 </head>
 <body>
     <h1><xsl:value-of select="test"/></h1>
@@ -36,16 +24,18 @@
 
     </h4>
 
-    <h3>Results</h3>
-    <table cellspacing="0">
-    <tr class="header">
-        <td>Run</td>
-        <td>Status</td>
-        <td>Message</td>
-        <td>Date</td>
-    </tr>
-    <xsl:apply-templates select='items' />
-    </table>
+    <div class="object">
+        <h2 class="h2">Results</h2>
+        <table cellspacing="0">
+            <tr class="header">
+                <td>Run</td>
+                <td>Status</td>
+                <td>Message</td>
+                <td>Date</td>
+            </tr>
+            <xsl:apply-templates select='items' />
+        </table>
+    </div>
 
 </body>
 </html>

@@ -4,3 +4,7 @@
 
   This is meant to be practical and not monstrous.
 
+#### Some notes
+    curl -vX POST http://localhost:3000/api/upload \
+         -d @rdb-aaa.xml \
+         --header "Content-Type: application/xml"

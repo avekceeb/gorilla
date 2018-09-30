@@ -7,6 +7,8 @@ TODO:
 	- move sql to server functions
 	- refresh testruns after clearing search field
 	- on historical results add link to testruns
+	- select by test name and tag
+	- select all fails for test
  */
 
 package main
@@ -29,6 +31,7 @@ import (
     . "gorilla/grll"
 	"time"
 	"path"
+	"io/ioutil"
 )
 
 const (
@@ -72,11 +75,11 @@ const (
         LEFT JOIN test ON test.id = measurement.test
         WHERE testrun.id = $1`
 
-	sqlGetTestRuns      = `SELECT id, name, ts FROM testrun ORDER BY ts LIMIT 50`
+	sqlGetTestRuns      = `SELECT id, name, ts, link FROM testrun ORDER BY ts LIMIT 50`
 
-	sqlGetTestRunById   = `SELECT name FROM testrun WHERE id = $1`
+	sqlGetTestRunById   = `SELECT name, ts, link FROM testrun WHERE id = $1`
 
-	sqlPutTestRun       = "SELECT * FROM new_testrun($1, $2)"
+	sqlPutTestRun       = "SELECT * FROM new_testrun($1, $2, $3)"
 
 	sqlPutResult        = "SELECT * FROM new_result($1, $2, NULL, $3)"
 
@@ -91,7 +94,7 @@ const (
 	sqlGetTags          = "SELECT id, name FROM tag ORDER BY name LIMIT 50"
 
 	sqlGetTestRunsByTag =
-		`SELECT id, name, ts FROM get_testruns_by_tag($1) ORDER BY ts`
+		`SELECT id, name, ts, link FROM get_testruns_by_tag($1) ORDER BY ts`
 
 	sqlSearchTestRun =
 		`select testrun.id, testrun.name, testrun.ts
@@ -157,6 +160,11 @@ func rdbToGrll(rdb *RDBTestSuite) *GrllTestRun {
 		g.Timestamp = time.Now().Format(time.RFC3339)
 	}
 
+	// Set link (to run artifacts)
+	if "" != rdb.Log {
+		g.Link = rdb.Log
+	}
+
 	// Grab all results and put them into 2 bags:
 	for _, t := range rdb.TestList.TestCases {
 		if "" != t.Status {
@@ -197,7 +205,7 @@ func getTestRuns() []GrllTestRun {
 	defer rows.Close()
 	for rows.Next() {
 		i := NewGrllTestRun()
-		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp)
+		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp, &i.Link)
 		if err != nil {
 			return list
 		}
@@ -206,10 +214,10 @@ func getTestRuns() []GrllTestRun {
 	return list
 }
 
-func newTestRun(n string, ts string) int {
+func newTestRun(n string, ts string, link string) int {
 	var id int
 	// this is specific to Postgres (not having LastInsertId)
-	err := db.QueryRow(sqlPutTestRun, n, ts).Scan(&id)
+	err := db.QueryRow(sqlPutTestRun, n, ts, link).Scan(&id)
 	if err!=nil {
 		log.Println(err.Error())
 	}
@@ -355,7 +363,7 @@ func getTestRunsByTag(tag string) []GrllTestRun {
 	defer rows.Close()
 	for rows.Next() {
 		i := NewGrllTestRun()
-		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp)
+		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp, &i.Link)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 			return list
@@ -375,7 +383,7 @@ func getTestRunsLike(likeThis string) []GrllTestRun {
 	defer rows.Close()
 	for rows.Next() {
 		i := NewGrllTestRun()
-		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp)
+		err := rows.Scan(&i.Id, &i.Run, &i.Timestamp, &i.Link)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 			return list
@@ -389,7 +397,7 @@ func getTestRunById(runId int) *GrllTestRun {
 
 	g := NewGrllTestRun()
 
-	err := db.QueryRow(sqlGetTestRunById, runId).Scan(&g.Run)
+	err := db.QueryRow(sqlGetTestRunById, runId).Scan(&g.Run, &g.Timestamp, &g.Link)
 	if err!=nil {
 		log.Println(err.Error())
 	}
@@ -427,7 +435,7 @@ func getTestRunByTest(testName string) GrllHistorical {
 
 func loadGrllTestRunToDB(g *GrllTestRun) {
 	// ??? check if Timestamp is empty
-	runId := newTestRun(g.Run, g.Timestamp)
+	runId := newTestRun(g.Run, g.Timestamp, g.Link)
 
 	// load all the tags
 	for _, t := range g.Tags {
@@ -481,7 +489,7 @@ func importRDBXml(rdr io.Reader) {
 
 ///////// http handlers ////////////////////////////////
 
-func getTestRun(w http.ResponseWriter, r *http.Request) {
+func httpGetTestRun(w http.ResponseWriter, r *http.Request) {
 	debug(r.URL.String() + " from " + r.RemoteAddr)
 	runId := r.URL.Query().Get("id")
 	tag := r.URL.Query().Get("tag")
@@ -535,10 +543,20 @@ func getTag(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func uploadReport(w http.ResponseWriter, r *http.Request) {
+func httpUploadReport(w http.ResponseWriter, r *http.Request) {
 	debug(r.URL.String() + " from " + r.RemoteAddr)
 	w.Header().Set("Content-Type", "text/plain")
 	url := r.URL.Query().Get("url")
+
+	// xml report attached
+	if "POST" == r.Method {
+		log.Println("Report upload")
+		body, _ := ioutil.ReadAll(r.Body)
+		log.Println(string(body))
+		//if "application/xml" == r.Header.Get("Content-Type") {
+		importRDBXml(strings.NewReader(string(body)))
+	}
+
 	// upload by url
 	// r.Method == GET
 	if url != "" {
@@ -600,10 +618,10 @@ func main() {
 		http.ServeFile(w, r, path.Join(*www, "grll.html"))
 	})
 
-	http.HandleFunc("/api/testrun", getTestRun)
+	http.HandleFunc("/api/testrun", httpGetTestRun)
 	http.HandleFunc("/api/tag", getTag)
 
-	http.HandleFunc("/api/upload", uploadReport)
+	http.HandleFunc("/api/upload", httpUploadReport)
 
 	http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 

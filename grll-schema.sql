@@ -46,10 +46,11 @@ CREATE TABLE "testrun" (
 	"id"   SERIAL NOT NULL,
 	"name" VARCHAR(255),
 	"ts"   TIMESTAMPTZ,
+	"link" VARCHAR(1023) DEFAULT NULL,
 	CONSTRAINT "pk_testrun" PRIMARY KEY ("id")
 );
 
--- tags for runn
+-- tags for run
 DROP TABLE IF EXISTS tag CASCADE;
 CREATE TABLE "tag" (
 	"id" SERIAL NOT NULL,
@@ -66,13 +67,13 @@ CREATE TABLE "testrun_tag" (
 );
 
 -----------------------------------------------
-CREATE OR REPLACE FUNCTION new_testrun(n varchar, t TIMESTAMPTZ)
-	RETURNS integer AS
+CREATE OR REPLACE FUNCTION new_testrun(n VARCHAR, t TIMESTAMPTZ, l VARCHAR)
+	RETURNS INTEGER AS
 $BODY$
-DECLARE v_id integer;
+DECLARE v_id INTEGER;
 BEGIN
-	INSERT INTO testrun ("name", "ts")
-	    VALUES (n, t)
+	INSERT INTO testrun ("name", "ts", "link")
+	    VALUES (n, t, l)
 	    RETURNING id INTO v_id;
 	RETURN v_id;
 END;
@@ -82,7 +83,7 @@ $BODY$
 -----------------------------------------------
 -- black woodoo magic
 -- return id of existing or insert new
-CREATE OR REPLACE FUNCTION new_tag(n varchar)
+CREATE OR REPLACE FUNCTION new_tag(n VARCHAR)
 	RETURNS INTEGER AS
 $$
 DECLARE ni INTEGER;
@@ -176,7 +177,7 @@ $$
 -----------------------------------------------
 CREATE OR REPLACE FUNCTION get_testruns_by_tag(VARCHAR) RETURNS SETOF testrun AS
 $$
-	SELECT DISTINCT testrun.id, testrun.name, testrun.ts
+	SELECT DISTINCT testrun.id, testrun.name, testrun.ts, testrun.link
 		FROM testrun
 		INNER JOIN testrun_tag ON testrun_tag.testrun = testrun.id
 		INNER JOIN tag ON tag.id = testrun_tag.tag
